@@ -1,0 +1,11 @@
+module.exports = {
+  extends: ['../../.eslintrc.js'],
+  env: {
+    browser: true,
+    es2020: true,
+  },
+  rules: {
+    'react/react-in-jsx-scope': 'off',
+    'react/prop-types': 'off',
+  },
+}

@@ -6,7 +6,12 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "api": "cd apps/api && go run cmd/server/main.go",
+    "migrate": "cd apps/api && go run cmd/migrate/main.go -command up",
+    "migrate:up": "cd apps/api && go run cmd/migrate/main.go -command up",
+    "migrate:down": "cd apps/api && go run cmd/migrate/main.go -command down -steps 1",
+    "migrate:version": "cd apps/api && go run cmd/migrate/main.go -command version"
   },
   "devDependencies": {
     "@turbo/gen": "^1.10.12",

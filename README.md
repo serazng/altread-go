@@ -20,8 +20,11 @@ pnpm install
 cp apps/api/.env.example apps/api/.env
 # Add your OPENAI_API_KEY and database credentials
 
+# Run database migrations
+pnpm migrate
+
 # Start API server
-cd apps/api && go run cmd/server/main.go
+pnpm api
 
 # Start web app
 cd apps/web && pnpm dev
@@ -52,7 +55,11 @@ pnpm build                 # Build all packages
 cd apps/web && pnpm build  # Build frontend
 
 # Database
-cd apps/api && go run cmd/server/main.go  # Auto-migrates on start
+# Run migrations before starting the server
+pnpm migrate              # Apply all migrations (or: cd apps/api && go run cmd/migrate/main.go -command up)
+pnpm migrate:version      # Check current version
+pnpm migrate:down         # Rollback last migration
+pnpm api                  # Start API server
 ```
 
 ## API Endpoints

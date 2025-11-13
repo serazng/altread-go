@@ -93,3 +93,16 @@ export interface CardProps extends BaseComponentProps {
   description?: string;
   actions?: any;
 }
+
+export type TimeRange = '7d' | '30d' | '90d' | 'all';
+
+export interface AnalyticsData {
+  totalImagesProcessed: number;
+  totalVoicePlays: number;
+  imagesOverTime: Array<{ date: string; count: number }>;
+  voiceUsage: Array<{ voiceName: string; count: number; percentage: number }>;
+  successRate: number;
+  averageProcessingTime: number;
+  totalSuccessful: number;
+  totalFailed: number;
+}

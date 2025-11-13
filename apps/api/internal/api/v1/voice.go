@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -90,7 +91,7 @@ func (h *VoiceHandler) GenerateSpeech(c echo.Context) error {
 			Success:      true,
 			ErrorMessage: nil,
 		}
-		_ = h.dbService.TrackVoicePlayFromSchema(ctx, event)
+		_ = h.dbService.TrackVoicePlayFromSchema(context.Background(), event)
 	}()
 
 	c.Response().Header().Set("Content-Type", "audio/mpeg")

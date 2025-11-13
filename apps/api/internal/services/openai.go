@@ -136,7 +136,7 @@ func (s *OpenAIService) validateAndCheckClient(imageData string, startTime time.
 	if err := s.ValidateImageInput(imageData); err != nil {
 		processingTime := int(time.Since(startTime).Milliseconds())
 		imageHash := s.generateImageHash(imageData)
-		go s.trackFailedGeneration(ctx, imageHash, processingTime, err.Error())
+		go s.trackFailedGeneration(context.Background(), imageHash, processingTime, err.Error())
 		return &schemas.GenerateAltTextResponse{
 			Success:        false,
 			AltText:        "",
@@ -148,7 +148,7 @@ func (s *OpenAIService) validateAndCheckClient(imageData string, startTime time.
 	if s.client == nil {
 		processingTime := int(time.Since(startTime).Milliseconds())
 		imageHash := s.generateImageHash(imageData)
-		go s.trackFailedGeneration(ctx, imageHash, processingTime, "OpenAI API key is not configured")
+		go s.trackFailedGeneration(context.Background(), imageHash, processingTime, "OpenAI API key is not configured")
 		return &schemas.GenerateAltTextResponse{
 			Success:        false,
 			AltText:        "",
@@ -201,7 +201,7 @@ func (s *OpenAIService) handleGenerationError(ctx context.Context, imageHash, er
 		"cached_at":       time.Now().Unix(),
 	}
 	go s.cache.CacheResult(ctx, imageHash, resultData, false)
-	go s.trackFailedGeneration(ctx, imageHash, processingTime, errorMsg)
+	go s.trackFailedGeneration(context.Background(), imageHash, processingTime, errorMsg)
 
 	return &schemas.GenerateAltTextResponse{
 		Success:        false,
@@ -220,7 +220,7 @@ func (s *OpenAIService) handleSuccess(ctx context.Context, imageHash, altText, m
 		"model_used":      model,
 	}
 	go s.cache.CacheResult(ctx, imageHash, resultData, true)
-	go s.trackSuccessfulGeneration(ctx, imageHash, processingTime, altText, model)
+	go s.trackSuccessfulGeneration(context.Background(), imageHash, processingTime, altText, model)
 
 	confidence := 0.95
 	return &schemas.GenerateAltTextResponse{

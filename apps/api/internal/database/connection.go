@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"altread-go/api/internal/config"
@@ -20,7 +21,7 @@ var DB *gorm.DB
 func Init(cfg *config.Config) error {
 	var err error
 
-	gormLogger := logger.Default
+	var gormLogger logger.Interface
 	if cfg.Debug {
 		gormLogger = logger.Default.LogMode(logger.Info)
 	} else {
@@ -28,7 +29,10 @@ func Init(cfg *config.Config) error {
 	}
 
 	dsn := cfg.GetDSN()
-	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
+	DB, err = gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: true, // Disable prepared statement cache to avoid conflicts
+	}), &gorm.Config{
 		Logger: gormLogger,
 	})
 	if err != nil {
@@ -52,18 +56,29 @@ func Init(cfg *config.Config) error {
 	return nil
 }
 
-// AutoMigrate runs database migrations for all models
+// AutoMigrate is deprecated. Use the migration CLI tool instead.
+// Run: go run cmd/migrate/main.go up
+//
+// Deprecated: This function is no longer used. Database migrations should be
+// managed using golang-migrate via the migration CLI tool.
 func AutoMigrate() error {
 	if DB == nil {
 		return fmt.Errorf("database connection not initialized")
 	}
 
+	// AutoMigrate will only create missing tables/columns
 	err := DB.AutoMigrate(
 		&models.ImageUpload{},
 		&models.VoicePlay{},
 		&models.ApplicationLog{},
 	)
 	if err != nil {
+		// Check if error is just about table already existing
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "already exists") {
+			log.Println("Database tables already exist, skipping migration")
+			return nil
+		}
 		return fmt.Errorf("failed to auto migrate: %w", err)
 	}
 

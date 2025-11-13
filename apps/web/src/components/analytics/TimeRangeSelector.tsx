@@ -1,6 +1,6 @@
 import React from 'react'
 import { TimeRange } from '@altread/types'
-import { Select, SelectOption } from '../ui/Select'
+import { CustomDropdown, DropdownOption } from '../ui'
 
 export interface TimeRangeSelectorProps {
   value: TimeRange
@@ -8,7 +8,7 @@ export interface TimeRangeSelectorProps {
   className?: string
 }
 
-const timeRangeOptions: SelectOption[] = [
+const timeRangeOptions: DropdownOption[] = [
   { value: '7d', label: 'Last 7 days' },
   { value: '30d', label: 'Last 30 days' },
   { value: '90d', label: 'Last 90 days' },
@@ -22,11 +22,11 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
 }) => {
   return (
     <div className={className}>
-      <Select
+      <CustomDropdown
         label="Time Range"
         options={timeRangeOptions}
         value={value}
-        onChange={(e) => onChange(e.target.value as TimeRange)}
+        onChange={(val) => onChange(val as TimeRange)}
       />
     </div>
   )

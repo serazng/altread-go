@@ -9,18 +9,22 @@ import (
 	"time"
 
 	"altread-go/api/internal/config"
+	"altread-go/api/internal/constants"
 	"altread-go/api/internal/schemas"
 
 	"github.com/sashabaranov/go-openai"
 )
 
+// OpenAIService handles OpenAI API interactions for alt text generation
 type OpenAIService struct {
-	client *openai.Client
-	cfg    *config.Config
-	cache  *CacheService
-	db     *DatabaseService
+	client     *openai.Client
+	cfg        *config.Config
+	cache      *CacheService
+	db         *DatabaseService
+	logService *LogService
 }
 
+// NewOpenAIService creates a new OpenAI service instance
 func NewOpenAIService(cfg *config.Config, cache *CacheService, db *DatabaseService) *OpenAIService {
 	var client *openai.Client
 	if cfg.OpenAIAPIKey != "" {
@@ -28,13 +32,15 @@ func NewOpenAIService(cfg *config.Config, cache *CacheService, db *DatabaseServi
 	}
 
 	return &OpenAIService{
-		client: client,
-		cfg:    cfg,
-		cache:  cache,
-		db:     db,
+		client:     client,
+		cfg:        cfg,
+		cache:      cache,
+		db:         db,
+		logService: GetLogService(),
 	}
 }
 
+// ValidateImageInput validates base64-encoded image data format and size
 func (s *OpenAIService) ValidateImageInput(imageData string) error {
 	if imageData == "" {
 		return fmt.Errorf("no image data provided")
@@ -57,14 +63,13 @@ func (s *OpenAIService) ValidateImageInput(imageData string) error {
 		return fmt.Errorf("invalid base64 encoding: %w", err)
 	}
 
-	if len(decoded) > 20*1024*1024 {
+	if len(decoded) > constants.MaxImageSizeBytes {
 		return fmt.Errorf("image too large. Maximum size is 20MB")
 	}
 
-	allowedFormats := []string{"jpeg", "jpg", "png", "gif", "webp"}
 	validFormat := false
-	for _, fmt := range allowedFormats {
-		if strings.Contains(strings.ToLower(header), fmt) {
+	for _, format := range constants.AllowedImageFormats {
+		if strings.Contains(strings.ToLower(header), format) {
 			validFormat = true
 			break
 		}
@@ -77,6 +82,7 @@ func (s *OpenAIService) ValidateImageInput(imageData string) error {
 	return nil
 }
 
+// BuildPrompt constructs the prompt for alt text generation based on options
 func (s *OpenAIService) BuildPrompt(options map[string]interface{}) string {
 	prompt := "Generate a concise alt text description for this image in 1-2 sentences (max 150 characters). Focus on the most important elements. "
 
@@ -101,13 +107,36 @@ func (s *OpenAIService) BuildPrompt(options map[string]interface{}) string {
 	return prompt
 }
 
+// GenerateAltText generates alt text for an image using OpenAI API with caching and fallback model support
 func (s *OpenAIService) GenerateAltText(ctx context.Context, req *schemas.GenerateAltTextRequest) (*schemas.GenerateAltTextResponse, error) {
 	startTime := time.Now()
 
-	if err := s.ValidateImageInput(req.Image); err != nil {
+	if resp, err := s.validateAndCheckClient(req.Image, startTime, ctx); resp != nil || err != nil {
+		return resp, err
+	}
+
+	imageHash := s.generateImageHash(req.Image)
+	if cached := s.getCachedResult(ctx, imageHash, startTime); cached != nil {
+		return cached, nil
+	}
+
+	altText, model, err := s.generateWithFallback(ctx, req)
+	if err != nil {
+		return s.handleGenerationError(ctx, imageHash, err.Error(), startTime), nil
+	}
+
+	if altText == "" {
+		return s.handleGenerationError(ctx, imageHash, "Failed to generate alt text", startTime), nil
+	}
+
+	return s.handleSuccess(ctx, imageHash, altText, model, startTime), nil
+}
+
+func (s *OpenAIService) validateAndCheckClient(imageData string, startTime time.Time, ctx context.Context) (*schemas.GenerateAltTextResponse, error) {
+	if err := s.ValidateImageInput(imageData); err != nil {
 		processingTime := int(time.Since(startTime).Milliseconds())
-		imageHash := s.generateImageHash(req.Image)
-		go s.trackFailedGeneration(context.Background(), imageHash, processingTime, err.Error())
+		imageHash := s.generateImageHash(imageData)
+		go s.trackFailedGeneration(ctx, imageHash, processingTime, err.Error())
 		return &schemas.GenerateAltTextResponse{
 			Success:        false,
 			AltText:        "",
@@ -118,8 +147,8 @@ func (s *OpenAIService) GenerateAltText(ctx context.Context, req *schemas.Genera
 
 	if s.client == nil {
 		processingTime := int(time.Since(startTime).Milliseconds())
-		imageHash := s.generateImageHash(req.Image)
-		go s.trackFailedGeneration(context.Background(), imageHash, processingTime, "OpenAI API key is not configured")
+		imageHash := s.generateImageHash(imageData)
+		go s.trackFailedGeneration(ctx, imageHash, processingTime, "OpenAI API key is not configured")
 		return &schemas.GenerateAltTextResponse{
 			Success:        false,
 			AltText:        "",
@@ -128,74 +157,70 @@ func (s *OpenAIService) GenerateAltText(ctx context.Context, req *schemas.Genera
 		}, nil
 	}
 
-	imageHash := s.generateImageHash(req.Image)
+	return nil, nil
+}
 
-	if cached, err := s.cache.GetCachedResult(ctx, imageHash); err == nil && cached != nil {
-		processingTime := int(time.Since(startTime).Milliseconds())
-		go s.trackCacheHit(context.Background(), imageHash, processingTime)
-		return &schemas.GenerateAltTextResponse{
-			Success:        cached["success"].(bool),
-			AltText:        getStringFromMap(cached, "alt_text"),
-			ProcessingTime: processingTime,
-			Error:          getStringPtrFromMap(cached, "error"),
-		}, nil
-	}
-
-	prompt := s.BuildPrompt(req.Options)
-
-	model := s.cfg.OpenAIModel
-	response, err := s.callOpenAIAPI(ctx, model, prompt, req.Image)
-	if err != nil {
-		if model != s.cfg.OpenAIModelFallback {
-			model = s.cfg.OpenAIModelFallback
-			response, err = s.callOpenAIAPI(ctx, model, prompt, req.Image)
-		}
-	}
-
-	if err != nil {
-		processingTime := int(time.Since(startTime).Milliseconds())
-		errorMsg := err.Error()
-
-		resultData := map[string]interface{}{
-			"alt_text":        "",
-			"processing_time": processingTime,
-			"error":           errorMsg,
-			"cached_at":       time.Now().Unix(),
-		}
-		go s.cache.CacheResult(context.Background(), imageHash, resultData, false)
-		go s.trackFailedGeneration(context.Background(), imageHash, processingTime, errorMsg)
-
-		return &schemas.GenerateAltTextResponse{
-			Success:        false,
-			AltText:        "",
-			ProcessingTime: processingTime,
-			Error:          stringPtr(errorMsg),
-		}, nil
-	}
-
-	altText := strings.TrimSpace(response)
-	if altText == "" {
-		processingTime := int(time.Since(startTime).Milliseconds())
-		errorMsg := "Failed to generate alt text"
-		go s.trackFailedGeneration(context.Background(), imageHash, processingTime, errorMsg)
-		return &schemas.GenerateAltTextResponse{
-			Success:        false,
-			AltText:        "",
-			ProcessingTime: processingTime,
-			Error:          stringPtr(errorMsg),
-		}, nil
+func (s *OpenAIService) getCachedResult(ctx context.Context, imageHash string, startTime time.Time) *schemas.GenerateAltTextResponse {
+	cached, err := s.cache.GetCachedResult(ctx, imageHash)
+	if err != nil || cached == nil {
+		return nil
 	}
 
 	processingTime := int(time.Since(startTime).Milliseconds())
+	var errorPtr *string
+	if cached.Error != "" {
+		errorPtr = stringPtr(cached.Error)
+	}
+	return &schemas.GenerateAltTextResponse{
+		Success:        cached.Success,
+		AltText:        cached.AltText,
+		ProcessingTime: processingTime,
+		Error:          errorPtr,
+	}
+}
 
+func (s *OpenAIService) generateWithFallback(ctx context.Context, req *schemas.GenerateAltTextRequest) (string, string, error) {
+	prompt := s.BuildPrompt(req.Options)
+	model := s.cfg.OpenAIModel
+
+	response, err := s.callOpenAIAPI(ctx, model, prompt, req.Image)
+	if err != nil && model != s.cfg.OpenAIModelFallback {
+		model = s.cfg.OpenAIModelFallback
+		response, err = s.callOpenAIAPI(ctx, model, prompt, req.Image)
+	}
+
+	return strings.TrimSpace(response), model, err
+}
+
+func (s *OpenAIService) handleGenerationError(ctx context.Context, imageHash, errorMsg string, startTime time.Time) *schemas.GenerateAltTextResponse {
+	processingTime := int(time.Since(startTime).Milliseconds())
+	resultData := map[string]interface{}{
+		"alt_text":        "",
+		"processing_time": processingTime,
+		"error":           errorMsg,
+		"cached_at":       time.Now().Unix(),
+	}
+	go s.cache.CacheResult(ctx, imageHash, resultData, false)
+	go s.trackFailedGeneration(ctx, imageHash, processingTime, errorMsg)
+
+	return &schemas.GenerateAltTextResponse{
+		Success:        false,
+		AltText:        "",
+		ProcessingTime: processingTime,
+		Error:          stringPtr(errorMsg),
+	}
+}
+
+func (s *OpenAIService) handleSuccess(ctx context.Context, imageHash, altText, model string, startTime time.Time) *schemas.GenerateAltTextResponse {
+	processingTime := int(time.Since(startTime).Milliseconds())
 	resultData := map[string]interface{}{
 		"alt_text":        altText,
 		"processing_time": processingTime,
 		"cached_at":       time.Now().Unix(),
 		"model_used":      model,
 	}
-	go s.cache.CacheResult(context.Background(), imageHash, resultData, true)
-	go s.trackSuccessfulGeneration(context.Background(), imageHash, processingTime, altText, model)
+	go s.cache.CacheResult(ctx, imageHash, resultData, true)
+	go s.trackSuccessfulGeneration(ctx, imageHash, processingTime, altText, model)
 
 	confidence := 0.95
 	return &schemas.GenerateAltTextResponse{
@@ -203,14 +228,14 @@ func (s *OpenAIService) GenerateAltText(ctx context.Context, req *schemas.Genera
 		AltText:        altText,
 		Confidence:     &confidence,
 		ProcessingTime: processingTime,
-	}, nil
+	}
 }
 
 func (s *OpenAIService) callOpenAIAPI(ctx context.Context, model, prompt, imageData string) (string, error) {
 	req := openai.ChatCompletionRequest{
 		Model:       model,
 		MaxTokens:   s.cfg.OpenAIMaxTokens,
-		Temperature: 0.3,
+		Temperature: constants.DefaultTemperature,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role: openai.ChatMessageRoleUser,
@@ -263,7 +288,7 @@ func (s *OpenAIService) trackSuccessfulGeneration(ctx context.Context, imageHash
 	}
 
 	if err := s.db.TrackImageUpload(ctx, event); err != nil {
-		fmt.Printf("Failed to track successful generation: %v\n", err)
+		s.logService.Log("error", "openai", fmt.Sprintf("Failed to track successful generation: %v", err), nil, nil)
 	}
 }
 
@@ -282,23 +307,7 @@ func (s *OpenAIService) trackFailedGeneration(ctx context.Context, imageHash str
 	}
 
 	if err := s.db.TrackImageUpload(ctx, event); err != nil {
-		fmt.Printf("Failed to track failed generation: %v\n", err)
+		s.logService.Log("error", "openai", fmt.Sprintf("Failed to track failed generation: %v", err), nil, nil)
 	}
 }
 
-func (s *OpenAIService) trackCacheHit(ctx context.Context, imageHash string, processingTime int) {
-}
-
-func getStringFromMap(m map[string]interface{}, key string) string {
-	if v, ok := m[key].(string); ok {
-		return v
-	}
-	return ""
-}
-
-func getStringPtrFromMap(m map[string]interface{}, key string) *string {
-	if v, ok := m[key].(string); ok && v != "" {
-		return &v
-	}
-	return nil
-}

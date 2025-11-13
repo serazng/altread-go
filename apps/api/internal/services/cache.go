@@ -13,6 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// CacheService handles Redis caching for alt text generation results
 type CacheService struct {
 	client *redis.Client
 	mu     sync.RWMutex
@@ -22,6 +23,7 @@ type CacheService struct {
 var cacheService *CacheService
 var cacheOnce sync.Once
 
+// GetCacheService returns a singleton cache service instance
 func GetCacheService(cfg *config.Config) *CacheService {
 	cacheOnce.Do(func() {
 		cacheService = &CacheService{
@@ -53,7 +55,8 @@ func (cs *CacheService) init() {
 	log.Println("Redis connection established")
 }
 
-func (cs *CacheService) GetCachedResult(ctx context.Context, imageHash string) (map[string]interface{}, error) {
+// GetCachedResult retrieves a cached alt text result by image hash
+func (cs *CacheService) GetCachedResult(ctx context.Context, imageHash string) (*CachedAltTextResult, error) {
 	if cs.client == nil {
 		return nil, fmt.Errorf("redis not connected")
 	}
@@ -67,14 +70,15 @@ func (cs *CacheService) GetCachedResult(ctx context.Context, imageHash string) (
 		return nil, err
 	}
 
-	var result map[string]interface{}
+	var result CachedAltTextResult
 	if err := json.Unmarshal([]byte(val), &result); err != nil {
 		return nil, err
 	}
 
-	return result, nil
+	return &result, nil
 }
 
+// CacheResult stores an alt text generation result in cache with TTL based on success status
 func (cs *CacheService) CacheResult(ctx context.Context, imageHash string, result map[string]interface{}, success bool) error {
 	if cs.client == nil {
 		return fmt.Errorf("redis not connected")
@@ -82,19 +86,22 @@ func (cs *CacheService) CacheResult(ctx context.Context, imageHash string, resul
 
 	key := fmt.Sprintf("alt_text:%s", imageHash)
 
-	cacheData := map[string]interface{}{
-		"alt_text":        result["alt_text"],
-		"success":         success,
-		"processing_time": result["processing_time"],
-		"cached_at":       time.Now().Unix(),
+	cacheData := CachedAltTextResult{
+		Success:        success,
+		ProcessingTime: getIntFromMap(result, "processing_time"),
+		CachedAt:       time.Now().Unix(),
+	}
+
+	if altText, ok := result["alt_text"].(string); ok {
+		cacheData.AltText = altText
 	}
 
 	if err, ok := result["error"].(string); ok && err != "" {
-		cacheData["error"] = err
+		cacheData.Error = err
 	}
 
 	if model, ok := result["model_used"].(string); ok {
-		cacheData["model_used"] = model
+		cacheData.ModelUsed = model
 	}
 
 	data, err := json.Marshal(cacheData)
@@ -110,37 +117,12 @@ func (cs *CacheService) CacheResult(ctx context.Context, imageHash string, resul
 	return cs.client.Set(ctx, key, data, ttl).Err()
 }
 
-func (cs *CacheService) HealthCheck(ctx context.Context) bool {
-	if cs.client == nil {
-		return false
+func getIntFromMap(m map[string]interface{}, key string) int {
+	if v, ok := m[key].(int); ok {
+		return v
 	}
-
-	if err := cs.client.Ping(ctx).Err(); err != nil {
-		return false
+	if v, ok := m[key].(float64); ok {
+		return int(v)
 	}
-
-	return true
-}
-
-func (cs *CacheService) GetCacheStats(ctx context.Context) (map[string]interface{}, error) {
-	if cs.client == nil {
-		return map[string]interface{}{
-			"connected": false,
-			"error":     "redis not connected",
-		}, nil
-	}
-
-	info := cs.client.Info(ctx, "stats")
-	stats, err := info.Result()
-	if err != nil {
-		return map[string]interface{}{
-			"connected": true,
-			"error":     err.Error(),
-		}, nil
-	}
-
-	return map[string]interface{}{
-		"connected": true,
-		"stats":     stats,
-	}, nil
+	return 0
 }

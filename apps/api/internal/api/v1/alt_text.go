@@ -6,17 +6,20 @@ import (
 	"strings"
 	"time"
 
+	"altread-go/api/internal/constants"
 	"altread-go/api/internal/schemas"
 	"altread-go/api/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
 
+// AltTextHandler handles HTTP requests for alt text generation
 type AltTextHandler struct {
 	openAIService *services.OpenAIService
 	logService    *services.LogService
 }
 
+// NewAltTextHandler creates a new alt text handler instance
 func NewAltTextHandler(openAIService *services.OpenAIService, logService *services.LogService) *AltTextHandler {
 	return &AltTextHandler{
 		openAIService: openAIService,
@@ -32,7 +35,7 @@ func (h *AltTextHandler) GenerateAltText(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"success": false,
 			"error":   "Invalid request body",
-			"code":    "INVALID_REQUEST",
+			"code":    constants.ErrCodeInvalidRequest,
 		})
 	}
 
@@ -42,7 +45,7 @@ func (h *AltTextHandler) GenerateAltText(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"success": false,
 			"error":   "Image is required",
-			"code":    "MISSING_IMAGE",
+			"code":    constants.ErrCodeMissingImage,
 		})
 	}
 
@@ -54,7 +57,7 @@ func (h *AltTextHandler) GenerateAltText(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"success": false,
 			"error":   "Internal server error",
-			"code":    "INTERNAL_ERROR",
+			"code":    constants.ErrCodeInternalError,
 		})
 	}
 
@@ -62,7 +65,7 @@ func (h *AltTextHandler) GenerateAltText(c echo.Context) error {
 	statusCode := http.StatusOK
 	if !response.Success {
 		if response.Error != nil && (*response.Error == "OpenAI API key is not configured" ||
-			contains(*response.Error, "API key")) {
+			strings.Contains(*response.Error, "API key")) {
 			statusCode = http.StatusServiceUnavailable
 		} else {
 			statusCode = http.StatusInternalServerError
@@ -78,15 +81,6 @@ func (h *AltTextHandler) GenerateAltText(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-func (h *AltTextHandler) HealthCheck(c echo.Context) error {
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success":   true,
-		"service":   "alt-text",
-		"message":   "Alt text generation service is healthy",
-		"timestamp": time.Now().Format(time.RFC3339),
-	})
-}
-
 func (h *AltTextHandler) logRequest(method, path string, status int, durationMs int) {
 	level := "info"
 	if status >= 400 {
@@ -98,8 +92,4 @@ func (h *AltTextHandler) logRequest(method, path string, status int, durationMs 
 
 	message := fmt.Sprintf("%s %s - %d (%dms)", method, path, status, durationMs)
 	h.logService.Log(level, "api", message, nil, nil)
-}
-
-func contains(s, substr string) bool {
-	return strings.Contains(s, substr)
 }

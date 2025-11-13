@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// LogService handles asynchronous logging to database with batching
 type LogService struct {
 	db      *gorm.DB
 	queue   chan *LogEntry
@@ -20,6 +21,7 @@ type LogService struct {
 	mu      sync.RWMutex
 }
 
+// LogEntry represents a single log entry
 type LogEntry struct {
 	Timestamp time.Time
 	Level     string
@@ -32,6 +34,7 @@ type LogEntry struct {
 var globalLogService *LogService
 var logOnce sync.Once
 
+// GetLogService returns a singleton log service instance
 func GetLogService() *LogService {
 	logOnce.Do(func() {
 		globalLogService = &LogService{
@@ -169,58 +172,4 @@ func (ls *LogService) storeLog(ctx context.Context, entry *LogEntry) {
 
 	if err := ls.db.WithContext(bgCtx).Create(logEntry).Error; err != nil {
 	}
-}
-
-func (ls *LogService) GetLogs(ctx context.Context, limit int, level, service *string, timeRange string) ([]map[string]interface{}, error) {
-	if ls.db == nil {
-		return []map[string]interface{}{}, nil
-	}
-
-	var duration time.Duration
-	switch timeRange {
-	case "5m":
-		duration = 5 * time.Minute
-	case "15m":
-		duration = 15 * time.Minute
-	case "6h":
-		duration = 6 * time.Hour
-	case "24h":
-		duration = 24 * time.Hour
-	case "7d":
-		duration = 7 * 24 * time.Hour
-	default:
-		duration = 1 * time.Hour
-	}
-
-	since := time.Now().Add(-duration)
-
-	query := ls.db.WithContext(ctx).Model(&models.ApplicationLog{}).
-		Where("timestamp >= ? AND service != ?", since, "Engine")
-
-	if level != nil && *level != "" {
-		query = query.Where("level = ?", *level)
-	}
-
-	if service != nil && *service != "" {
-		query = query.Where("service = ?", *service)
-	}
-
-	var logs []models.ApplicationLog
-	if err := query.Order("timestamp DESC").Limit(limit).Find(&logs).Error; err != nil {
-		return []map[string]interface{}{}, err
-	}
-
-	result := make([]map[string]interface{}, len(logs))
-	for i, log := range logs {
-		result[i] = map[string]interface{}{
-			"timestamp": log.Timestamp.Format(time.RFC3339),
-			"level":     log.Level,
-			"service":   log.Service,
-			"message":   log.Message,
-			"traceId":   log.TraceID,
-			"context":   log.Context,
-		}
-	}
-
-	return result, nil
 }

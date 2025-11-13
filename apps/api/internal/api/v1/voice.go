@@ -1,22 +1,24 @@
 package v1
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"altread-go/api/internal/constants"
 	"altread-go/api/internal/schemas"
 	"altread-go/api/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
 
+// VoiceHandler handles HTTP requests for TTS voice operations
 type VoiceHandler struct {
 	ttsService *services.OpenAITTSService
 	dbService  *services.DatabaseService
 }
 
+// NewVoiceHandler creates a new voice handler instance
 func NewVoiceHandler(ttsService *services.OpenAITTSService, dbService *services.DatabaseService) *VoiceHandler {
 	return &VoiceHandler{
 		ttsService: ttsService,
@@ -30,7 +32,7 @@ func (h *VoiceHandler) GenerateSpeech(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"success": false,
 			"error":   "Invalid request body",
-			"code":    "INVALID_REQUEST",
+			"code":    constants.ErrCodeInvalidRequest,
 		})
 	}
 
@@ -38,7 +40,7 @@ func (h *VoiceHandler) GenerateSpeech(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"success": false,
 			"error":   "Text is required for speech generation",
-			"code":    "MISSING_TEXT",
+			"code":    constants.ErrCodeMissingText,
 		})
 	}
 
@@ -46,32 +48,23 @@ func (h *VoiceHandler) GenerateSpeech(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"success": false,
 			"error":   "Voice is required",
-			"code":    "MISSING_VOICE",
+			"code":    constants.ErrCodeMissingVoice,
 		})
 	}
 
-	openaiVoices := []string{"alloy", "echo", "fable", "onyx", "nova", "shimmer"}
-	validVoice := false
-	for _, v := range openaiVoices {
-		if v == req.Voice {
-			validVoice = true
-			break
-		}
-	}
-
-	if !validVoice {
+	if !h.ttsService.ValidateVoice(req.Voice) {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"success": false,
-			"error":   "Only OpenAI voices are supported. Valid voices: " + strings.Join(openaiVoices, ", "),
-			"code":    "INVALID_VOICE",
+			"error":   "Only OpenAI voices are supported. Valid voices: " + strings.Join(constants.OpenAIVoiceList, ", "),
+			"code":    constants.ErrCodeInvalidVoice,
 		})
 	}
 
-	if len(req.Text) > 4096 {
+	if len(req.Text) > constants.MaxTextLength {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
 			"success": false,
-			"error":   "Text too long. Maximum 4096 characters allowed.",
-			"code":    "TEXT_TOO_LONG",
+			"error":   fmt.Sprintf("Text too long. Maximum %d characters allowed.", constants.MaxTextLength),
+			"code":    constants.ErrCodeTextTooLong,
 		})
 	}
 
@@ -81,7 +74,7 @@ func (h *VoiceHandler) GenerateSpeech(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"success": false,
 			"error":   "Failed to generate speech",
-			"code":    "TTS_GENERATION_ERROR",
+			"code":    constants.ErrCodeTTSGenerationError,
 		})
 	}
 
@@ -93,11 +86,11 @@ func (h *VoiceHandler) GenerateSpeech(c echo.Context) error {
 		event := &schemas.VoicePlayEvent{
 			VoiceName:    req.Voice,
 			TextLength:   len(req.Text),
-			DurationMS:   0, // We don't have duration info from OpenAI TTS
+			DurationMS:   0,
 			Success:      true,
 			ErrorMessage: nil,
 		}
-		_ = h.dbService.TrackVoicePlayFromSchema(context.Background(), event)
+		_ = h.dbService.TrackVoicePlayFromSchema(ctx, event)
 	}()
 
 	c.Response().Header().Set("Content-Type", "audio/mpeg")
@@ -115,67 +108,17 @@ func (h *VoiceHandler) GenerateSpeech(c echo.Context) error {
 func (h *VoiceHandler) GetOpenAIVoices(c echo.Context) error {
 	voices := h.ttsService.GetAvailableVoices()
 
-	voiceObjects := make([]map[string]interface{}, len(voices))
+	voiceObjects := make([]VoiceInfo, len(voices))
 	for i, v := range voices {
-		voiceObjects[i] = map[string]interface{}{
-			"id":          v["id"],
-			"name":        v["name"],
-			"description": v["description"],
+		voiceObjects[i] = VoiceInfo{
+			ID:          v["id"],
+			Name:        v["name"],
+			Description: v["description"],
 		}
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"voices":  voiceObjects,
-	})
-}
-
-func (h *VoiceHandler) TrackVoicePlay(c echo.Context) error {
-	var event schemas.VoicePlayEvent
-	if err := c.Bind(&event); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"success": false,
-			"error":   "Invalid request body",
-			"code":    "INVALID_REQUEST",
-		})
-	}
-
-	if event.VoiceName == "" {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"success": false,
-			"error":   "Voice name is required",
-			"code":    "MISSING_VOICE_NAME",
-		})
-	}
-
-	openaiVoices := []string{"alloy", "echo", "fable", "onyx", "nova", "shimmer"}
-	validVoice := false
-	for _, v := range openaiVoices {
-		if v == event.VoiceName {
-			validVoice = true
-			break
-		}
-	}
-
-	if !validVoice {
-		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"success": false,
-			"error":   "Only OpenAI voices are supported. Valid voices: " + strings.Join(openaiVoices, ", "),
-			"code":    "INVALID_VOICE_NAME",
-		})
-	}
-
-	ctx := c.Request().Context()
-	if err := h.dbService.TrackVoicePlayFromSchema(ctx, &event); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-			"success": false,
-			"error":   "Failed to track voice play",
-			"code":    "VOICE_TRACKING_ERROR",
-		})
-	}
-
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "Voice play tracked successfully",
+	return c.JSON(http.StatusOK, GetVoicesResponse{
+		Success: true,
+		Voices:  voiceObjects,
 	})
 }

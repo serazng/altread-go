@@ -12,16 +12,19 @@ import (
 	"gorm.io/gorm"
 )
 
+// DatabaseService handles database operations for tracking events
 type DatabaseService struct {
 	db *gorm.DB
 }
 
+// NewDatabaseService creates a new database service instance
 func NewDatabaseService() *DatabaseService {
 	return &DatabaseService{
 		db: database.DB,
 	}
 }
 
+// TrackImageUpload records an image upload event in the database
 func (ds *DatabaseService) TrackImageUpload(ctx context.Context, event *imageUploadEvent) error {
 	dbEvent := &models.ImageUpload{
 		ID:               uuid.New(),
@@ -39,25 +42,7 @@ func (ds *DatabaseService) TrackImageUpload(ctx context.Context, event *imageUpl
 	return ds.db.WithContext(ctx).Create(dbEvent).Error
 }
 
-func (ds *DatabaseService) TrackVoicePlay(ctx context.Context, event *voicePlayEvent) error {
-	var durationMS *int
-	if event.DurationMS > 0 {
-		durationMS = &event.DurationMS
-	}
-
-	dbEvent := &models.VoicePlay{
-		ID:           uuid.New(),
-		VoiceName:    event.VoiceName,
-		TextLength:   event.TextLength,
-		DurationMS:   durationMS,
-		Success:      event.Success,
-		ErrorMessage: event.ErrorMessage,
-		CreatedAt:    time.Now(),
-	}
-
-	return ds.db.WithContext(ctx).Create(dbEvent).Error
-}
-
+// TrackVoicePlayFromSchema records a voice play event from a schema struct
 func (ds *DatabaseService) TrackVoicePlayFromSchema(ctx context.Context, event *schemas.VoicePlayEvent) error {
 	var durationMS *int
 	if event.DurationMS > 0 {
@@ -86,12 +71,4 @@ type imageUploadEvent struct {
 	ProcessingTimeMS *int
 	Success          bool
 	ErrorMessage     *string
-}
-
-type voicePlayEvent struct {
-	VoiceName    string
-	TextLength   int
-	DurationMS   int
-	Success      bool
-	ErrorMessage *string
 }

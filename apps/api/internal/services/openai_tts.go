@@ -6,25 +6,28 @@ import (
 	"io"
 
 	"altread-go/api/internal/config"
+	"altread-go/api/internal/constants"
 	"altread-go/api/internal/schemas"
 
 	"github.com/sashabaranov/go-openai"
 )
 
+// OpenAITTSService handles OpenAI TTS API interactions
 type OpenAITTSService struct {
 	client          *openai.Client
 	cfg             *config.Config
 	availableVoices []map[string]string
 }
 
+// NewOpenAITTSService creates a new OpenAI TTS service instance
 func NewOpenAITTSService(cfg *config.Config) *OpenAITTSService {
 	voices := []map[string]string{
-		{"id": "alloy", "name": "Alloy", "description": "Balanced and clear"},
-		{"id": "echo", "name": "Echo", "description": "Deep and calm"},
-		{"id": "fable", "name": "Fable", "description": "Warm and expressive"},
-		{"id": "onyx", "name": "Onyx", "description": "Authoritative and firm"},
-		{"id": "nova", "name": "Nova", "description": "Friendly and enthusiastic"},
-		{"id": "shimmer", "name": "Shimmer", "description": "Crisp and pleasant"},
+		{"id": constants.VoiceAlloy, "name": "Alloy", "description": "Balanced and clear"},
+		{"id": constants.VoiceEcho, "name": "Echo", "description": "Deep and calm"},
+		{"id": constants.VoiceFable, "name": "Fable", "description": "Warm and expressive"},
+		{"id": constants.VoiceOnyx, "name": "Onyx", "description": "Authoritative and firm"},
+		{"id": constants.VoiceNova, "name": "Nova", "description": "Friendly and enthusiastic"},
+		{"id": constants.VoiceShimmer, "name": "Shimmer", "description": "Crisp and pleasant"},
 	}
 
 	var client *openai.Client
@@ -39,10 +42,12 @@ func NewOpenAITTSService(cfg *config.Config) *OpenAITTSService {
 	}
 }
 
+// GetAvailableVoices returns the list of available OpenAI TTS voices
 func (s *OpenAITTSService) GetAvailableVoices() []map[string]string {
 	return s.availableVoices
 }
 
+// ValidateVoice checks if the provided voice is a valid OpenAI TTS voice
 func (s *OpenAITTSService) ValidateVoice(voice string) bool {
 	for _, v := range s.availableVoices {
 		if v["id"] == voice {
@@ -52,13 +57,14 @@ func (s *OpenAITTSService) ValidateVoice(voice string) bool {
 	return false
 }
 
+// GenerateSpeech generates speech audio from text using OpenAI TTS API
 func (s *OpenAITTSService) GenerateSpeech(ctx context.Context, req *schemas.TTSRequest) (*schemas.TTSResponse, error) {
 	if s.client == nil {
 		errorMsg := "OpenAI client not initialized. Please check your API key."
 		return &schemas.TTSResponse{
 			Success: false,
 			Error:   &errorMsg,
-			Code:    stringPtr("CLIENT_NOT_INITIALIZED"),
+			Code:    stringPtr(constants.ErrCodeClientNotInitialized),
 		}, nil
 	}
 
@@ -67,7 +73,7 @@ func (s *OpenAITTSService) GenerateSpeech(ctx context.Context, req *schemas.TTSR
 		return &schemas.TTSResponse{
 			Success: false,
 			Error:   &errorMsg,
-			Code:    stringPtr("MISSING_TEXT"),
+			Code:    stringPtr(constants.ErrCodeMissingText),
 		}, nil
 	}
 
@@ -76,30 +82,30 @@ func (s *OpenAITTSService) GenerateSpeech(ctx context.Context, req *schemas.TTSR
 		return &schemas.TTSResponse{
 			Success: false,
 			Error:   &errorMsg,
-			Code:    stringPtr("INVALID_VOICE"),
+			Code:    stringPtr(constants.ErrCodeInvalidVoice),
 		}, nil
 	}
 
-	if len(req.Text) > 4096 {
-		errorMsg := "Text too long. Maximum 4096 characters allowed."
+	if len(req.Text) > constants.MaxTextLength {
+		errorMsg := fmt.Sprintf("Text too long. Maximum %d characters allowed.", constants.MaxTextLength)
 		return &schemas.TTSResponse{
 			Success: false,
 			Error:   &errorMsg,
-			Code:    stringPtr("TEXT_TOO_LONG"),
+			Code:    stringPtr(constants.ErrCodeTextTooLong),
 		}, nil
 	}
 
-	model := "tts-1"
+	model := constants.DefaultTTSModel
 	if req.Model != nil {
 		model = *req.Model
 	}
 
-	speed := 1.0
+	speed := constants.DefaultTTSSpeed
 	if req.Speed != nil {
 		speed = *req.Speed
 	}
 
-	format := "mp3"
+	format := constants.DefaultTTSFormat
 	if req.ResponseFormat != nil {
 		format = *req.ResponseFormat
 	}
@@ -115,19 +121,19 @@ func (s *OpenAITTSService) GenerateSpeech(ctx context.Context, req *schemas.TTSR
 	resp, err := s.client.CreateSpeech(ctx, ttsReq)
 	if err != nil {
 		errorMsg := "Failed to generate speech"
-		code := "TTS_GENERATION_ERROR"
+		code := constants.ErrCodeTTSGenerationError
 
 		if openaiErr, ok := err.(*openai.APIError); ok {
 			switch openaiErr.Code {
 			case "insufficient_quota":
 				errorMsg = "OpenAI API quota exceeded"
-				code = "QUOTA_EXCEEDED"
+				code = constants.ErrCodeQuotaExceeded
 			case "invalid_api_key":
 				errorMsg = "Invalid OpenAI API key"
-				code = "INVALID_API_KEY"
+				code = constants.ErrCodeInvalidAPIKey
 			case "rate_limit_exceeded":
 				errorMsg = "OpenAI API rate limit exceeded"
-				code = "RATE_LIMIT_EXCEEDED"
+				code = constants.ErrCodeRateLimitExceeded
 			}
 		}
 
@@ -144,7 +150,7 @@ func (s *OpenAITTSService) GenerateSpeech(ctx context.Context, req *schemas.TTSR
 		return &schemas.TTSResponse{
 			Success: false,
 			Error:   &errorMsg,
-			Code:    stringPtr("READ_ERROR"),
+			Code:    stringPtr(constants.ErrCodeReadError),
 		}, nil
 	}
 
@@ -154,6 +160,7 @@ func (s *OpenAITTSService) GenerateSpeech(ctx context.Context, req *schemas.TTSR
 	}, nil
 }
 
+// GetVoiceIDs returns a list of available voice IDs
 func (s *OpenAITTSService) GetVoiceIDs() []string {
 	ids := make([]string, len(s.availableVoices))
 	for i, v := range s.availableVoices {

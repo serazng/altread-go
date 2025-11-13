@@ -19,7 +19,7 @@ export const GenerateButton: React.FC<GenerateButtonProps> = ({
   if (!selectedImage) return null
 
   return (
-    <div style={{ marginTop: '16px', textAlign: 'center', display: 'flex', gap: '12px', justifyContent: 'center' }}>
+    <div className="button-group" style={{ marginTop: '16px', textAlign: 'center' }}>
       <Button
         variant="primary"
         onClick={onGenerate}

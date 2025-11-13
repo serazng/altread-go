@@ -21,9 +21,9 @@ export const VoiceControls: React.FC<VoiceControlsProps> = ({
   onStop
 }) => {
   return (
-    <div className="block">
-      <div className="block-title">Audio Controls</div>
-      <div className="control-bar">
+    <div className="mb-4 md:mb-6 overflow-visible">
+      <div className="text-xs font-medium uppercase tracking-wider text-content-tertiary mb-3">Audio Controls</div>
+      <div className="flex flex-col gap-2 mb-4 flex-wrap sm:flex-row sm:mb-6">
         <Button 
           variant="primary"
           disabled={!altText || isLoading}

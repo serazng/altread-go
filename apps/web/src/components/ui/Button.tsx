@@ -16,11 +16,11 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseClasses = 'button'
+  const baseClasses = 'inline-flex items-center justify-center rounded-sm text-base font-medium font-inherit cursor-pointer transition-all duration-100 border-none gap-1.5 whitespace-nowrap min-h-[44px] px-4 py-3 md:min-h-auto md:px-3 md:py-1.5'
   const variantClasses = {
-    primary: 'button-primary',
-    secondary: '',
-    outline: 'button-outline'
+    primary: 'bg-accent text-white hover:bg-accent-hover',
+    secondary: 'bg-transparent text-content-primary hover:bg-surface-hover active:bg-[var(--border)]',
+    outline: 'bg-transparent text-content-primary border border-[var(--border)] hover:border-[var(--border-dark)]'
   }
   const sizeClasses = {
     sm: 'text-sm px-3 py-1.5',
@@ -32,7 +32,7 @@ export const Button: React.FC<ButtonProps> = ({
     baseClasses,
     variantClasses[variant],
     sizeClasses[size],
-    isLoading ? 'opacity-50 cursor-not-allowed' : '',
+    (disabled || isLoading) ? 'opacity-50 cursor-not-allowed' : '',
     className
   ].filter(Boolean).join(' ')
 
@@ -43,7 +43,7 @@ export const Button: React.FC<ButtonProps> = ({
       {...props}
     >
       {isLoading && (
-        <div className="spinner mr-2" style={{ width: '16px', height: '16px' }}></div>
+        <div className="w-4 h-4 border-2 border-[var(--border)] border-t-content-tertiary rounded-full animate-spin mr-2"></div>
       )}
       {children}
     </button>

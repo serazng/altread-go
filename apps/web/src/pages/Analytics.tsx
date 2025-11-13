@@ -36,7 +36,7 @@ export const Analytics: React.FC = () => {
           title="Analytics"
           description="View statistics about image processing and voice usage"
         />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
+        <div className="flex items-center justify-center min-h-[400px]">
           <LoadingState type="spinner" message="Loading analytics..." />
         </div>
       </div>
@@ -66,7 +66,7 @@ export const Analytics: React.FC = () => {
           title="Analytics"
           description="View statistics about image processing and voice usage"
         />
-        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+        <div className="py-10 text-center text-content-secondary">
           No analytics data available
         </div>
       </div>
@@ -80,15 +80,15 @@ export const Analytics: React.FC = () => {
         description="View statistics about image processing and voice usage"
       />
 
-      <div className="content-section" style={{ display: 'block' }}>
-        <div className="block" style={{ marginBottom: '24px' }}>
+      <div className="block animate-[fadeIn_0.2s_ease]">
+        <div className="mb-6 overflow-visible">
           <TimeRangeSelector
             value={timeRange}
             onChange={setTimeRange}
           />
         </div>
 
-        <div className="stats-grid">
+        <div className="grid grid-cols-1 gap-3 mt-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4 lg:gap-5">
           <StatCard
             title="Total Images Processed"
             value={formatNumber(data.totalImagesProcessed)}

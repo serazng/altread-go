@@ -146,10 +146,10 @@ export const Dashboard: React.FC = () => {
         preview={preview}
       />
 
-      <div className="content-section" style={{ display: 'block' }}>
-        <div className="block">
-          <div className="block-title">Output</div>
-          <div className="columns">
+      <div className="block animate-[fadeIn_0.2s_ease]">
+        <div className="mb-4 md:mb-6 overflow-visible">
+          <div className="text-xs font-medium uppercase tracking-wider text-content-tertiary mb-3">Output</div>
+          <div className="grid grid-cols-1 gap-3 mb-4 md:grid-cols-2 md:gap-6 md:mb-6">
             <ImagePreview
               selectedImage={selectedImage}
               preview={preview}
@@ -180,7 +180,7 @@ export const Dashboard: React.FC = () => {
         />
 
         {openaiVoices.length === 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120 }}>
+          <div className="flex items-center justify-center min-h-[120px]">
             <LoadingState type="spinner" message="Loading voices..." />
           </div>
         ) : (

@@ -23,13 +23,13 @@ export const Toast: React.FC<ToastProps> = ({
   }, [duration, onClose])
 
   const typeClasses = {
-    success: 'status-success',
-    error: 'status-error',
-    info: 'status-toast'
+    success: 'bg-surface-primary text-content-primary border border-[var(--border)]',
+    error: 'bg-[#fef3f2] text-[#d92b2b] border border-[#fee4e2]',
+    info: 'bg-surface-primary text-content-primary border border-[var(--border)]'
   }
 
   return (
-    <div className={`status-toast ${typeClasses[type]}`}>
+    <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-sm text-base shadow-[0_2px_8px_rgba(0,0,0,0.12)] animate-[slideUp_0.2s_ease] z-[1000] ${typeClasses[type]}`}>
       {message}
     </div>
   )

@@ -10,16 +10,16 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
   preview
 }) => {
   return (
-    <div className="image-block">
+    <div className="bg-surface-secondary rounded-sm p-3 flex items-center justify-center min-h-[200px] max-h-[300px] overflow-hidden md:min-h-[280px] md:max-h-[360px]">
       {selectedImage || preview ? (
         <img 
           src={preview || (selectedImage ? URL.createObjectURL(selectedImage) : '')} 
-          className="image-preview" 
+          className="max-w-full max-h-full h-auto block rounded-sm" 
           alt="Uploaded image" 
         />
       ) : (
-        <div style={{ textAlign: 'center', color: '#9b9a97', fontSize: '14px' }}>
-          <div style={{ marginBottom: '12px' }}>📷</div>
+        <div className="text-center text-content-tertiary text-base">
+          <div className="mb-3">📷</div>
           <div>No image uploaded</div>
         </div>
       )}

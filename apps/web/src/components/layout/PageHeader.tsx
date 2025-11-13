@@ -12,9 +12,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   className = ''
 }) => {
   return (
-    <div className={`page-header ${className}`}>
-      <h1 className="page-title">{title}</h1>
-      <p className="page-description">{description}</p>
+    <div className={`mb-8 md:mb-10 ${className}`}>
+      <h1 className="text-2xl font-semibold leading-[1.3] tracking-[-0.01em] mb-2 text-content-primary md:text-3xl">{title}</h1>
+      <p className="text-base text-content-secondary">{description}</p>
     </div>
   )
 }

@@ -72,27 +72,27 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   }
 
   return (
-    <div className={`setting-item ${className}`}>
+    <div className={`flex flex-col overflow-visible ${className}`}>
       {label && (
-        <label className="setting-label">
+        <label className="text-sm text-content-secondary mb-1.5 flex justify-between items-center">
           {label}
         </label>
       )}
       <div 
         ref={dropdownRef}
-        className={`custom-dropdown ${disabled ? 'disabled' : ''} ${isOpen ? 'open' : ''}`}
+        className={`relative w-full ${disabled ? 'opacity-50' : ''}`}
       >
         <button
           type="button"
-          className="dropdown-trigger"
+          className={`w-full px-2 py-3 min-h-[44px] border border-[var(--border)] rounded-sm bg-surface-primary text-base font-inherit text-content-primary cursor-pointer transition-all duration-100 flex items-center justify-between text-left hover:border-[var(--border-dark)] focus:outline-none focus:border-accent focus:shadow-[0_0_0_2px_rgba(35,131,226,0.14)] disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-surface-secondary md:px-2 md:py-1.5 md:min-h-auto ${disabled ? 'opacity-50 cursor-not-allowed bg-surface-secondary' : ''}`}
           onClick={handleToggle}
           disabled={disabled}
         >
-          <span className="dropdown-value">
+          <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           <svg 
-            className={`dropdown-arrow ${isOpen ? 'open' : ''}`}
+            className={`flex-shrink-0 ml-2 text-content-tertiary transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
             width="12" 
             height="12" 
             viewBox="0 0 12 12" 
@@ -111,19 +111,19 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
         {isOpen && (
           <div 
             ref={menuRef}
-            className={`dropdown-menu ${dropdownPosition === 'top' ? 'dropdown-menu-top' : ''}`}
+            className={`absolute ${dropdownPosition === 'top' ? 'bottom-full mb-0.5' : 'top-full mt-0.5'} left-0 right-0 z-[9999] bg-surface-primary border border-[var(--border)] rounded-sm shadow-dropdown max-h-[200px] overflow-y-auto animate-[dropdownFadeIn_0.15s_ease] ${dropdownPosition === 'top' ? 'animate-[dropdownFadeInTop_0.15s_ease]' : ''}`}
           >
             {options.map((option) => (
               <button
                 key={option.value}
                 type="button"
-                className={`dropdown-option ${option.value === value ? 'selected' : ''}`}
+                className={`w-full px-3 py-2 border-none bg-transparent text-content-primary text-base font-inherit text-left cursor-pointer transition-all duration-100 flex items-center justify-between gap-2 hover:bg-surface-hover ${option.value === value ? 'bg-surface-secondary text-content-primary' : ''}`}
                 onClick={() => handleSelect(option.value)}
               >
-                <span className="option-label">{option.label}</span>
+                <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{option.label}</span>
                 {option.value === value && (
                   <svg 
-                    className="check-icon"
+                    className="flex-shrink-0 text-accent"
                     width="12" 
                     height="12" 
                     viewBox="0 0 12 12" 

@@ -19,10 +19,10 @@ export const VoiceSettingsComponent: React.FC<VoiceSettingsProps> = ({
   }))
 
   return (
-    <div className="block">
-      <div className="block-title">Voice Settings</div>
-      <div className="settings-block">
-        <div className="settings-grid">
+    <div className="mb-4 md:mb-6 overflow-visible">
+      <div className="text-xs font-medium uppercase tracking-wider text-content-tertiary mb-3">Voice Settings</div>
+      <div className="bg-surface-secondary rounded-sm p-4 overflow-visible">
+        <div className="grid grid-cols-1 gap-3 overflow-visible sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] sm:gap-4">
           <CustomDropdown
             label="Voice"
             options={openaiVoiceOptions}
@@ -31,11 +31,11 @@ export const VoiceSettingsComponent: React.FC<VoiceSettingsProps> = ({
             placeholder="Select a voice"
           />
 
-          <div className="setting-item">
-            <label className="setting-label">Model</label>
-            <div className="model-display">
-              <span className="model-text">Standard (tts-1)</span>
-              <span className="model-badge">Fixed</span>
+          <div className="flex flex-col overflow-visible">
+            <label className="text-sm text-content-secondary mb-1.5 flex justify-between items-center">Model</label>
+            <div className="flex items-center justify-between px-2 py-1.5 border border-[var(--border)] rounded-sm bg-surface-secondary text-base text-content-secondary">
+              <span className="flex-1 font-medium">Standard (tts-1)</span>
+              <span className="bg-content-tertiary text-surface-primary px-1.5 py-0.5 rounded-[2px] text-xs font-medium uppercase tracking-wider">Fixed</span>
             </div>
           </div>
         </div>
